@@ -66,7 +66,11 @@ declare
   actual   int;
   skew     record;
 begin
-  tx_id := case tg_table_name when 'transactions' then new.id else new.transaction_id end;
+  if tg_table_name = 'transactions' then
+    tx_id := new.id;
+  else
+    tx_id := new.transaction_id;
+  end if;
 
   select entry_count into expected from transactions where id = tx_id;
   select count(*) into actual from entries where transaction_id = tx_id;
