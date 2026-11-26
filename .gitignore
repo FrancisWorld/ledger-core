@@ -13,3 +13,4 @@ target/
 *.tfvars
 !*.tfvars.example
 crash.log
+.jqwik-database

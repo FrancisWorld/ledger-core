@@ -97,7 +97,7 @@ public record Account(
     if (!allowNegative && available() < 0) {
       throw LedgerException.unprocessable(
           "insufficient-funds",
-          "Account %s has insufficient available funds (available %d)"
+          "Account %s would be left with %d available, which is not allowed"
               .formatted(code, available()));
     }
     return this;
