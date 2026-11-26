@@ -40,8 +40,18 @@ public record Account(
     return new Account(id, code, name, type, currency, allowNegative, 0, 0, now);
   }
 
+  /**
+   * Spendable funds, {@code balance - held}, computed with checked arithmetic. On an overdraftable
+   * account whose balance sits near {@code Long.MIN_VALUE} the exact difference does not fit in a
+   * long, so it saturates at {@code Long.MIN_VALUE} (still "deeply negative") instead of wrapping
+   * around to a large positive number.
+   */
   public long available() {
-    return balance - held;
+    try {
+      return Math.subtractExact(balance, held);
+    } catch (ArithmeticException e) {
+      return Long.MIN_VALUE;
+    }
   }
 
   public Direction normalSide() {
@@ -64,7 +74,10 @@ public record Account(
     return new Account(id, code, name, type, currency, allowNegative, next, held, createdAt);
   }
 
-  /** Reserves funds for a hold; fails when the spendable balance is too low. */
+  /**
+   * Reserves funds for a hold. A hold always needs the funds to exist: {@code allowNegative} lets
+   * debits overdraw the account but never lets a hold reserve money the account does not have.
+   */
   public Account reserve(long amount) {
     if (normalSide() != Direction.CREDIT) {
       throw LedgerException.unprocessable(
@@ -76,9 +89,13 @@ public record Account(
     } catch (ArithmeticException e) {
       throw LedgerException.unprocessable("amount-overflow", "Held amount would overflow");
     }
-    Account updated =
-        new Account(id, code, name, type, currency, allowNegative, balance, nextHeld, createdAt);
-    return updated.requireSolvent();
+    if (nextHeld > balance) {
+      throw LedgerException.unprocessable(
+          "insufficient-funds",
+          "Account %s cannot reserve %d: balance %d, already held %d"
+              .formatted(code, amount, balance, held));
+    }
+    return new Account(id, code, name, type, currency, allowNegative, balance, nextHeld, createdAt);
   }
 
   /** Gives reserved funds back to the spendable balance. */

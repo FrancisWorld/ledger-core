@@ -152,12 +152,20 @@ public final class HoldService implements HoldUseCase {
             () -> {
               Instant now = clock.instant();
               List<Hold> due = holds.lockExpired(now, EXPIRY_BATCH);
+              if (due.isEmpty()) {
+                return 0;
+              }
+              // Same global order as every other writer: distinct accounts, ascending id.
+              List<UUID> accountIds =
+                  due.stream().map(Hold::accountId).distinct().sorted().toList();
+              Map<UUID, Account> locked = writer.lock(accountIds);
               for (Hold hold : due) {
                 Hold done = hold.expire(now);
-                unreserve(done);
+                locked.computeIfPresent(hold.accountId(), (id, a) -> a.unreserve(hold.amount()));
                 holds.update(done);
                 outbox.append(event("hold.expired", done));
               }
+              accounts.updateBalances(locked.values());
               return due.size();
             });
     if (expired > 0) {

@@ -20,6 +20,7 @@ import io.github.francisworld.ledger.domain.LedgerException;
 import io.github.francisworld.ledger.domain.Transaction;
 import io.github.francisworld.ledger.support.AbstractIT;
 import java.time.Duration;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Queue;
@@ -342,5 +343,73 @@ class ConcurrencyIT extends AbstractIT {
     assertThat(reversed.get()).isEqualTo(1);
     assertThat(accounts.get(a.id()).balance()).isEqualTo(1_000);
     assertThat(accounts.get(b.id()).balance()).isZero();
+  }
+
+  /**
+   * The sweeper locks accounts for many holds at once, while transfers lock pairs of accounts. If
+   * the sweeper took them in hold order instead of ascending id order, opposing transfers could
+   * deadlock against it.
+   */
+  @Test
+  void holdExpiryRacingWithTransfersNeverDeadlocks() throws Exception {
+    int walletCount = 6;
+    Account cash = open(AccountType.ASSET, true);
+    List<Account> wallets = new ArrayList<>();
+    for (int i = 0; i < walletCount; i++) {
+      Account w = open(AccountType.LIABILITY, false);
+      deposit(cash, w, 100_000);
+      wallets.add(w);
+    }
+    // Expiry order (by expires_at) deliberately runs against account-id order.
+    List<Account> byIdDescending =
+        wallets.stream().sorted(java.util.Comparator.comparing(Account::id).reversed()).toList();
+    Instant base = Instant.now().plusMillis(600);
+    for (int round = 0; round < 8; round++) {
+      for (int i = 0; i < walletCount; i++) {
+        holds.place(
+            new PlaceHold(
+                byIdDescending.get(i).id(), 10, "USD", null, base.plusMillis(round * 100L + i)));
+      }
+    }
+    AtomicInteger expired = new AtomicInteger();
+
+    try (ExecutorService executor = Executors.newFixedThreadPool(9)) {
+      List<Future<?>> futures = new ArrayList<>();
+      futures.add(
+          executor.submit(
+              () -> {
+                long deadline = System.nanoTime() + Duration.ofSeconds(30).toNanos();
+                while (expired.get() < 8 * walletCount && System.nanoTime() < deadline) {
+                  expired.addAndGet(holds.expireDue());
+                  Thread.sleep(10);
+                }
+                return null;
+              }));
+      for (int t = 0; t < 8; t++) {
+        int seed = t;
+        futures.add(
+            executor.submit(
+                () -> {
+                  ThreadLocalRandom rnd = ThreadLocalRandom.current();
+                  long until = System.nanoTime() + Duration.ofMillis(2_500).toNanos();
+                  while (System.nanoTime() < until) {
+                    Account from = wallets.get(rnd.nextInt(walletCount));
+                    Account to = wallets.get((wallets.indexOf(from) + 1 + seed % 5) % walletCount);
+                    posting.transfer(new Transfer(from.id(), to.id(), 1, "USD", null, null));
+                  }
+                  return null;
+                }));
+      }
+      for (Future<?> f : futures) {
+        f.get(60, java.util.concurrent.TimeUnit.SECONDS); // a deadlock victim surfaces here
+      }
+    }
+
+    assertThat(expired.get()).isEqualTo(8 * walletCount);
+    for (Account w : wallets) {
+      assertThat(accounts.get(w.id()).held()).isZero();
+    }
+    assertThat(wallets.stream().mapToLong(w -> accounts.get(w.id()).balance()).sum())
+        .isEqualTo(walletCount * 100_000L);
   }
 }
