@@ -22,7 +22,7 @@ spring:
     user: ${LEDGER_MIGRATION_DB_USER:ledger}
     password: ${LEDGER_MIGRATION_DB_PASSWORD:replace-me}
     placeholders:
-      runtime_password: ${LEDGER_DB_PASSWORD:replace-me}
+      runtime_password: ${LEDGER_RUNTIME_ROLE_PASSWORD:${LEDGER_DB_PASSWORD:replace-me}}
   lifecycle:
     timeout-per-shutdown-phase: 20s
   task:
