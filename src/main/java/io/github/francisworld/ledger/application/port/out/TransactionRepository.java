@@ -15,8 +15,9 @@ public interface TransactionRepository {
   Optional<Transaction> find(UUID id);
 
   /**
-   * Like {@link #find} but takes a row lock held until the unit of work ends. Reversals use it to
-   * serialize on the transaction being reversed, so a racing duplicate sees the first reversal.
+   * Like {@link #find} but first takes a lock on the transaction held until the unit of work ends.
+   * Reversals use it to serialize on the transaction being reversed, so a racing duplicate sees the
+   * first reversal.
    */
   Optional<Transaction> lock(UUID id);
 

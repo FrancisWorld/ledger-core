@@ -72,7 +72,13 @@ class JdbcTransactionRepository implements TransactionRepository {
 
   @Override
   public Optional<Transaction> lock(UUID id) {
-    return select(id, " for update");
+    // The journal is append-only, so the runtime role has no UPDATE privilege and cannot use
+    // SELECT ... FOR UPDATE here. A transaction-scoped advisory lock serializes the same way.
+    jdbc.sql("select pg_advisory_xact_lock(hashtextextended(:id, 0))")
+        .param("id", id.toString())
+        .query()
+        .singleRow();
+    return select(id, "");
   }
 
   private Optional<Transaction> select(UUID id, String lockClause) {

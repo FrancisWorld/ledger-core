@@ -35,6 +35,8 @@ class ApiExceptionHandler extends ResponseEntityExceptionHandler {
     HttpStatus status =
         switch (e.kind()) {
           case INVALID -> HttpStatus.BAD_REQUEST;
+          case UNAUTHENTICATED -> HttpStatus.UNAUTHORIZED;
+          case FORBIDDEN -> HttpStatus.FORBIDDEN;
           case NOT_FOUND -> HttpStatus.NOT_FOUND;
           case CONFLICT -> HttpStatus.CONFLICT;
           case UNPROCESSABLE -> HttpStatus.UNPROCESSABLE_CONTENT;

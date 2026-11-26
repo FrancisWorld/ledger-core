@@ -322,8 +322,8 @@ class LedgerApiIT extends AbstractIT {
     fundedWorld();
 
     Resp docs = api.get("/v3/api-docs");
-    Resp health = api.get("/actuator/health");
-    Resp metric = api.get("/actuator/metrics/ledger.transactions.posted");
+    Resp health = management.get("/actuator/health");
+    Resp metric = management.get("/actuator/metrics/ledger.transactions.posted");
 
     assertThat(docs.status()).isEqualTo(200);
     assertThat(docs.body().get("paths").toString()).contains("/v1/transfers").contains("/v1/holds");

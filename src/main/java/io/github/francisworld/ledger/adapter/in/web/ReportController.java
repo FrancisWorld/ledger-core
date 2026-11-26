@@ -4,6 +4,7 @@ import io.github.francisworld.ledger.adapter.in.web.Api.CurrencyTotalsResponse;
 import io.github.francisworld.ledger.adapter.in.web.Api.TrialBalanceResponse;
 import io.github.francisworld.ledger.application.port.in.ReportUseCase;
 import io.github.francisworld.ledger.application.port.in.ReportUseCase.TrialBalance;
+import io.github.francisworld.ledger.domain.Scope;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -22,6 +23,7 @@ class ReportController {
   }
 
   @GetMapping
+  @RequiresScope(Scope.REPORTS_READ)
   @Operation(
       summary = "Per-currency trial balance and drift check",
       description =

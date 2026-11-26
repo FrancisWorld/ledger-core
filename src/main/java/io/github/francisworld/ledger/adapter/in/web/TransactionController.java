@@ -8,6 +8,7 @@ import io.github.francisworld.ledger.application.port.in.PostingUseCase;
 import io.github.francisworld.ledger.application.port.in.PostingUseCase.Journal;
 import io.github.francisworld.ledger.application.port.in.PostingUseCase.JournalLine;
 import io.github.francisworld.ledger.application.port.in.PostingUseCase.Transfer;
+import io.github.francisworld.ledger.domain.Scope;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
@@ -34,6 +35,7 @@ class TransactionController {
   }
 
   @PostMapping("/v1/transfers")
+  @RequiresScope(Scope.TRANSACTIONS_WRITE)
   @Operation(
       summary = "Move money between two accounts",
       description =
@@ -60,6 +62,7 @@ class TransactionController {
   }
 
   @PostMapping("/v1/transactions")
+  @RequiresScope(Scope.TRANSACTIONS_WRITE)
   @Operation(
       summary = "Post a free-form journal entry",
       description =
@@ -85,12 +88,14 @@ class TransactionController {
   }
 
   @GetMapping("/v1/transactions/{id}")
+  @RequiresScope(Scope.TRANSACTIONS_READ)
   @Operation(summary = "Read a transaction with its entries")
   TransactionResponse get(@PathVariable UUID id) {
     return TransactionResponse.from(posting.get(id));
   }
 
   @PostMapping("/v1/transactions/{id}/reversal")
+  @RequiresScope(Scope.TRANSACTIONS_WRITE)
   @Operation(
       summary = "Reverse a transaction",
       description =

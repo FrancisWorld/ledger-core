@@ -2,6 +2,7 @@ package io.github.francisworld.ledger.adapter.in.web;
 
 import io.github.francisworld.ledger.application.service.IdempotentExecutor;
 import io.github.francisworld.ledger.domain.LedgerException;
+import io.github.francisworld.ledger.domain.Principal;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
@@ -10,6 +11,8 @@ import java.util.function.Supplier;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Component;
+import org.springframework.web.context.request.RequestAttributes;
+import org.springframework.web.context.request.RequestContextHolder;
 import tools.jackson.databind.ObjectMapper;
 
 /**
@@ -22,7 +25,7 @@ class IdempotentHandler {
 
   static final String HEADER = "Idempotency-Key";
   static final String REPLAY_HEADER = "Idempotent-Replayed";
-  private static final int MAX_KEY_LENGTH = 255;
+  private static final int MAX_KEY_LENGTH = 200;
 
   private final IdempotentExecutor executor;
   private final ObjectMapper json;
@@ -40,10 +43,11 @@ class IdempotentHandler {
       Class<T> responseType,
       Supplier<T> action) {
     requireValidKey(key);
+    String scopedKey = principalId() + ":" + key;
     String fingerprint = sha256(operation + "\n" + json.writeValueAsString(request));
     IdempotentExecutor.Outcome outcome =
         executor.execute(
-            key,
+            scopedKey,
             fingerprint,
             () ->
                 new IdempotentExecutor.Response(
@@ -53,6 +57,17 @@ class IdempotentHandler {
       builder.header(REPLAY_HEADER, "true");
     }
     return builder.body(json.readValue(outcome.response().body(), responseType));
+  }
+
+  /** Keys are namespaced per API key so one client can never replay another's responses. */
+  private static String principalId() {
+    Object principal =
+        RequestContextHolder.currentRequestAttributes()
+            .getAttribute(ApiKeyInterceptor.PRINCIPAL_ATTRIBUTE, RequestAttributes.SCOPE_REQUEST);
+    if (principal instanceof Principal p) {
+      return p.keyId().toString();
+    }
+    throw LedgerException.unauthenticated("No authenticated principal");
   }
 
   private static void requireValidKey(String key) {

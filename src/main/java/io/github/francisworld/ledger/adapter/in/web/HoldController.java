@@ -9,6 +9,7 @@ import io.github.francisworld.ledger.application.port.in.HoldUseCase;
 import io.github.francisworld.ledger.application.port.in.HoldUseCase.CaptureHold;
 import io.github.francisworld.ledger.application.port.in.HoldUseCase.Captured;
 import io.github.francisworld.ledger.application.port.in.HoldUseCase.PlaceHold;
+import io.github.francisworld.ledger.domain.Scope;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
@@ -37,6 +38,7 @@ class HoldController {
   }
 
   @PostMapping
+  @RequiresScope(Scope.HOLDS_WRITE)
   @Operation(
       summary = "Reserve funds on an account",
       description =
@@ -62,12 +64,14 @@ class HoldController {
   }
 
   @GetMapping("/{id}")
+  @RequiresScope(Scope.HOLDS_READ)
   @Operation(summary = "Read a hold")
   HoldResponse get(@PathVariable UUID id) {
     return HoldResponse.from(holds.get(id));
   }
 
   @PostMapping("/{id}/capture")
+  @RequiresScope(Scope.HOLDS_WRITE)
   @Operation(
       summary = "Capture a hold into a transfer",
       description =
@@ -93,6 +97,7 @@ class HoldController {
   }
 
   @PostMapping("/{id}/release")
+  @RequiresScope(Scope.HOLDS_WRITE)
   @Operation(summary = "Release a hold, freeing the reserved funds")
   ResponseEntity<HoldResponse> release(
       @RequestHeader(IdempotentHandler.HEADER) String key, @PathVariable UUID id) {

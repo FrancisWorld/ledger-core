@@ -4,13 +4,15 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import io.github.francisworld.ledger.support.AbstractIT;
+import io.github.francisworld.ledger.support.PostgresTestSupport;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.jdbc.core.simple.JdbcClient;
+import org.springframework.jdbc.datasource.DataSourceTransactionManager;
+import org.springframework.jdbc.datasource.DriverManagerDataSource;
 import org.springframework.transaction.support.TransactionTemplate;
 
 /**
@@ -19,14 +21,19 @@ import org.springframework.transaction.support.TransactionTemplate;
  */
 class DatabaseInvariantsIT extends AbstractIT {
 
-  @Autowired JdbcClient jdbc;
-  @Autowired TransactionTemplate tx;
+  /** Owner connection: proves the triggers and constraints even for the most privileged writer. */
+  private JdbcClient jdbc;
+
+  private TransactionTemplate tx;
 
   private UUID cash;
   private UUID wallet;
 
   @BeforeEach
   void accounts() {
+    DriverManagerDataSource owner = PostgresTestSupport.ownerDataSource();
+    jdbc = JdbcClient.create(owner);
+    tx = new TransactionTemplate(new DataSourceTransactionManager(owner));
     cash = api.cash(uniqueCode("cash"));
     wallet = api.wallet(uniqueCode("wallet"));
   }

@@ -1,9 +1,10 @@
 spring:
   application:
     name: ledger-core
+  # Runtime connection: the unprivileged ledger_app role created by migration V6.
   datasource:
     url: ${LEDGER_DB_URL:jdbc:postgresql://localhost:5432/ledger}
-    username: ${LEDGER_DB_USER:ledger}
+    username: ${LEDGER_DB_USER:ledger_app}
     password: ${LEDGER_DB_PASSWORD:replace-me}
     hikari:
       maximum-pool-size: ${LEDGER_DB_POOL_SIZE:20}
@@ -13,8 +14,15 @@ spring:
       enabled: true
   jackson:
     property-naming-strategy: SNAKE_CASE
+  # Migrations run as the schema owner, never as the runtime role. The runtime role's password is
+  # injected into migration V6 as a placeholder.
   flyway:
     locations: classpath:db/migration
+    url: ${LEDGER_MIGRATION_DB_URL:${LEDGER_DB_URL:jdbc:postgresql://localhost:5432/ledger}}
+    user: ${LEDGER_MIGRATION_DB_USER:ledger}
+    password: ${LEDGER_MIGRATION_DB_PASSWORD:replace-me}
+    placeholders:
+      runtime_password: ${LEDGER_DB_PASSWORD:replace-me}
   lifecycle:
     timeout-per-shutdown-phase: 20s
   task:
@@ -28,6 +36,9 @@ server:
   shutdown: graceful
 
 management:
+  server:
+    # Health, metrics and Prometheus live on an internal port that the load balancer never routes to.
+    port: ${LEDGER_MANAGEMENT_PORT:8081}
   endpoints:
     web:
       exposure:

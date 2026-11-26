@@ -1,6 +1,7 @@
 package io.github.francisworld.ledger;
 
 import static com.tngtech.archunit.lang.syntax.ArchRuleDefinition.classes;
+import static com.tngtech.archunit.lang.syntax.ArchRuleDefinition.methods;
 import static com.tngtech.archunit.lang.syntax.ArchRuleDefinition.noClasses;
 
 import com.tngtech.archunit.core.importer.ImportOption;
@@ -111,4 +112,15 @@ class ArchitectureTest {
           .should()
           .dependOnClassesThat()
           .resideInAPackage("io.github.francisworld.ledger.application.port.out..");
+
+  @ArchTest
+  static final ArchRule EVERY_ENDPOINT_DECLARES_A_SCOPE =
+      methods()
+          .that()
+          .areAnnotatedWith(org.springframework.web.bind.annotation.GetMapping.class)
+          .or()
+          .areAnnotatedWith(org.springframework.web.bind.annotation.PostMapping.class)
+          .should()
+          .beAnnotatedWith("io.github.francisworld.ledger.adapter.in.web.RequiresScope")
+          .because("endpoints are closed by default and each names the API-key scope it needs");
 }

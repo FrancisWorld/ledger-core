@@ -9,6 +9,8 @@ public class LedgerException extends RuntimeException {
   /** Coarse classification of a failure, independent of any transport. */
   public enum Kind {
     INVALID,
+    UNAUTHENTICATED,
+    FORBIDDEN,
     NOT_FOUND,
     CONFLICT,
     UNPROCESSABLE
@@ -33,6 +35,14 @@ public class LedgerException extends RuntimeException {
 
   public static LedgerException invalid(String code, String message) {
     return new LedgerException(Kind.INVALID, code, message);
+  }
+
+  public static LedgerException unauthenticated(String message) {
+    return new LedgerException(Kind.UNAUTHENTICATED, "unauthenticated", message);
+  }
+
+  public static LedgerException forbidden(String message) {
+    return new LedgerException(Kind.FORBIDDEN, "forbidden", message);
   }
 
   public static LedgerException notFound(String code, String message) {

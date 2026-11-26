@@ -8,6 +8,7 @@ import io.github.francisworld.ledger.application.port.in.AccountUseCase;
 import io.github.francisworld.ledger.application.port.in.AccountUseCase.OpenAccount;
 import io.github.francisworld.ledger.application.port.in.AccountUseCase.Statement;
 import io.github.francisworld.ledger.application.port.in.AccountUseCase.StatementQuery;
+import io.github.francisworld.ledger.domain.Scope;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
@@ -39,6 +40,7 @@ class AccountController {
   }
 
   @PostMapping
+  @RequiresScope(Scope.ACCOUNTS_WRITE)
   @Operation(summary = "Open an account")
   ResponseEntity<AccountResponse> open(
       @RequestHeader(IdempotentHandler.HEADER) String key,
@@ -61,12 +63,14 @@ class AccountController {
   }
 
   @GetMapping("/{id}")
+  @RequiresScope(Scope.ACCOUNTS_READ)
   @Operation(summary = "Read an account with its balance, held and available amounts")
   AccountResponse get(@PathVariable UUID id) {
     return AccountResponse.from(accounts.get(id));
   }
 
   @GetMapping("/{id}/statement")
+  @RequiresScope(Scope.ACCOUNTS_READ)
   @Operation(
       summary = "Entries of an account in posting order, each with the running balance",
       description = "Keyset pagination: pass the previous page's next_cursor as `after`.")

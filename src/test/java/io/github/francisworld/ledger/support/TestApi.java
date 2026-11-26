@@ -20,9 +20,17 @@ public final class TestApi {
   private final ObjectMapper json;
   private final HttpClient http = HttpClient.newHttpClient();
 
-  public TestApi(String base, ObjectMapper json) {
+  private final String token;
+
+  public TestApi(String base, ObjectMapper json, String token) {
     this.base = base;
     this.json = json;
+    this.token = token;
+  }
+
+  /** Same server, different credentials; null sends no Authorization header. */
+  public TestApi withToken(String otherToken) {
+    return new TestApi(base, json, otherToken);
   }
 
   public Resp post(String path, String idempotencyKey, Object body) {
@@ -35,11 +43,15 @@ public final class TestApi {
     if (idempotencyKey != null) {
       request.header("Idempotency-Key", idempotencyKey);
     }
-    return send(request.build());
+    return send(authorize(request).build());
   }
 
   public Resp get(String path) {
-    return send(HttpRequest.newBuilder(URI.create(base + path)).GET().build());
+    return send(authorize(HttpRequest.newBuilder(URI.create(base + path)).GET()).build());
+  }
+
+  private HttpRequest.Builder authorize(HttpRequest.Builder request) {
+    return token == null ? request : request.header("Authorization", "Bearer " + token);
   }
 
   private Resp send(HttpRequest request) {
@@ -50,12 +62,23 @@ public final class TestApi {
           response.statusCode(),
           response.headers().firstValue("Content-Type").orElse(""),
           response.headers().firstValue("Idempotent-Replayed").orElse(null),
-          raw == null || raw.isBlank() ? null : json.readTree(raw));
+          parse(raw));
     } catch (InterruptedException e) {
       Thread.currentThread().interrupt();
       throw new IllegalStateException(e);
     } catch (java.io.IOException e) {
       throw new IllegalStateException(e);
+    }
+  }
+
+  private JsonNode parse(String raw) {
+    if (raw == null || raw.isBlank()) {
+      return null;
+    }
+    try {
+      return json.readTree(raw);
+    } catch (tools.jackson.core.JacksonException notJson) {
+      return null; // e.g. the Prometheus text format
     }
   }
 

@@ -1,10 +1,12 @@
 package io.github.francisworld.ledger.bootstrap;
 
 import io.github.francisworld.ledger.application.port.in.AccountUseCase;
+import io.github.francisworld.ledger.application.port.in.ApiKeyUseCase;
 import io.github.francisworld.ledger.application.port.in.HoldUseCase;
 import io.github.francisworld.ledger.application.port.in.PostingUseCase;
 import io.github.francisworld.ledger.application.port.in.ReportUseCase;
 import io.github.francisworld.ledger.application.port.out.AccountRepository;
+import io.github.francisworld.ledger.application.port.out.ApiKeyRepository;
 import io.github.francisworld.ledger.application.port.out.EventSink;
 import io.github.francisworld.ledger.application.port.out.HoldRepository;
 import io.github.francisworld.ledger.application.port.out.IdGenerator;
@@ -14,6 +16,7 @@ import io.github.francisworld.ledger.application.port.out.OutboxStore;
 import io.github.francisworld.ledger.application.port.out.ReportQuery;
 import io.github.francisworld.ledger.application.port.out.TransactionRepository;
 import io.github.francisworld.ledger.application.port.out.UnitOfWork;
+import io.github.francisworld.ledger.application.service.ApiKeyService;
 import io.github.francisworld.ledger.application.service.IdempotentExecutor;
 import io.github.francisworld.ledger.application.service.LedgerServices;
 import io.github.francisworld.ledger.application.service.OutboxRelay;
@@ -63,6 +66,11 @@ class LedgerConfiguration {
   @Bean
   ReportUseCase reportUseCase(ReportQuery query) {
     return new ReportService(query);
+  }
+
+  @Bean
+  ApiKeyUseCase apiKeyUseCase(ApiKeyRepository repository, IdGenerator ids) {
+    return new ApiKeyService(repository, ids);
   }
 
   @Bean
