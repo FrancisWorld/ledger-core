@@ -7,18 +7,22 @@ resource "aws_security_group" "alb" {
 }
 
 resource "aws_vpc_security_group_ingress_rule" "alb_http" {
+  for_each = toset(var.ingress_cidrs)
+
   security_group_id = aws_security_group.alb.id
-  description       = "HTTP from the internet (redirected when a certificate is configured)"
-  cidr_ipv4         = "0.0.0.0/0"
+  description       = "HTTP, answered with a redirect to HTTPS"
+  cidr_ipv4         = each.value
   ip_protocol       = "tcp"
   from_port         = 80
   to_port           = 80
 }
 
 resource "aws_vpc_security_group_ingress_rule" "alb_https" {
+  for_each = toset(var.ingress_cidrs)
+
   security_group_id = aws_security_group.alb.id
-  description       = "HTTPS from the internet"
-  cidr_ipv4         = "0.0.0.0/0"
+  description       = "HTTPS"
+  cidr_ipv4         = each.value
   ip_protocol       = "tcp"
   from_port         = 443
   to_port           = 443
@@ -26,11 +30,11 @@ resource "aws_vpc_security_group_ingress_rule" "alb_https" {
 
 resource "aws_vpc_security_group_egress_rule" "alb_to_app" {
   security_group_id            = aws_security_group.alb.id
-  description                  = "Forward to the service tasks only"
+  description                  = "Forward to the service tasks and their health port only"
   referenced_security_group_id = aws_security_group.app.id
   ip_protocol                  = "tcp"
   from_port                    = 8080
-  to_port                      = 8080
+  to_port                      = 8081
 }
 
 resource "aws_security_group" "app" {
@@ -43,11 +47,11 @@ resource "aws_security_group" "app" {
 
 resource "aws_vpc_security_group_ingress_rule" "app_from_alb" {
   security_group_id            = aws_security_group.app.id
-  description                  = "Traffic from the load balancer"
+  description                  = "Traffic and health checks from the load balancer"
   referenced_security_group_id = aws_security_group.alb.id
   ip_protocol                  = "tcp"
   from_port                    = 8080
-  to_port                      = 8080
+  to_port                      = 8081
 }
 
 resource "aws_vpc_security_group_egress_rule" "app_to_db" {

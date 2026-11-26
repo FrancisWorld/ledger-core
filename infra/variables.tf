@@ -59,9 +59,19 @@ variable "db_multi_az" {
 }
 
 variable "certificate_arn" {
-  description = "ACM certificate for the HTTPS listener. Leave empty to serve plain HTTP (not for production)."
+  description = "ACM certificate for the HTTPS listener. Required: the service is only exposed over HTTPS and port 80 only redirects."
   type        = string
-  default     = ""
+
+  validation {
+    condition     = can(regex("^arn:aws[a-z-]*:acm:", var.certificate_arn))
+    error_message = "certificate_arn must be the ARN of an ACM certificate."
+  }
+}
+
+variable "ingress_cidrs" {
+  description = "CIDR blocks allowed to reach the load balancer. Empty by default, so nothing is reachable until you list your clients (or a CDN/WAF range) explicitly."
+  type        = list(string)
+  default     = []
 }
 
 variable "single_nat_gateway" {

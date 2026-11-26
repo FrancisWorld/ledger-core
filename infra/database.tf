@@ -35,3 +35,27 @@ resource "aws_db_instance" "this" {
   auto_minor_version_upgrade = true
   apply_immediately          = false
 }
+
+# Credentials of the unprivileged ledger_app role the service connects as. The role itself is
+# created by Flyway migration V6 (run by the migrate task as the owner), which receives this
+# password as a placeholder. Unlike the RDS-managed master secret, this password is generated here
+# and therefore also lives in the OpenTofu state: keep the state in an encrypted backend.
+resource "random_password" "runtime" {
+  length  = 40
+  special = false
+}
+
+resource "aws_secretsmanager_secret" "runtime_db" {
+  name                    = "${var.name}/runtime-db"
+  description             = "Credentials of the ledger_app database role"
+  recovery_window_in_days = 7
+}
+
+resource "aws_secretsmanager_secret_version" "runtime_db" {
+  secret_id = aws_secretsmanager_secret.runtime_db.id
+
+  secret_string = jsonencode({
+    username = "ledger_app"
+    password = random_password.runtime.result
+  })
+}

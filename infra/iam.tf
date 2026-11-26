@@ -9,7 +9,8 @@ data "aws_iam_policy_document" "ecs_tasks_assume" {
   }
 }
 
-# Used by the ECS agent to start the task: pull the image, write logs, read the database secret.
+# Used by the ECS agent to start the service task: pull the image, write logs, read ONLY the
+# runtime database secret. The RDS master secret is deliberately out of reach of the service.
 resource "aws_iam_role" "execution" {
   name               = "${var.name}-execution"
   assume_role_policy = data.aws_iam_policy_document.ecs_tasks_assume.json
@@ -39,9 +40,9 @@ data "aws_iam_policy_document" "execution" {
   }
 
   statement {
-    sid       = "DatabaseSecret"
+    sid       = "RuntimeDatabaseSecret"
     actions   = ["secretsmanager:GetSecretValue"]
-    resources = [aws_db_instance.this.master_user_secret[0].secret_arn]
+    resources = [aws_secretsmanager_secret.runtime_db.arn]
   }
 }
 
@@ -69,4 +70,50 @@ resource "aws_iam_role_policy" "task" {
   name   = "publish-events"
   role   = aws_iam_role.task.id
   policy = data.aws_iam_policy_document.task.json
+}
+
+# The one-off migrate task runs Flyway (and issues API keys) as the schema owner, so only this role
+# can read the master secret. Nothing long-running uses it.
+resource "aws_iam_role" "migrate_execution" {
+  name               = "${var.name}-migrate-execution"
+  assume_role_policy = data.aws_iam_policy_document.ecs_tasks_assume.json
+}
+
+data "aws_iam_policy_document" "migrate_execution" {
+  statement {
+    sid       = "EcrToken"
+    actions   = ["ecr:GetAuthorizationToken"]
+    resources = ["*"]
+  }
+
+  statement {
+    sid = "EcrPull"
+    actions = [
+      "ecr:BatchCheckLayerAvailability",
+      "ecr:GetDownloadUrlForLayer",
+      "ecr:BatchGetImage",
+    ]
+    resources = [aws_ecr_repository.this.arn]
+  }
+
+  statement {
+    sid       = "Logs"
+    actions   = ["logs:CreateLogStream", "logs:PutLogEvents"]
+    resources = ["${aws_cloudwatch_log_group.this.arn}:*"]
+  }
+
+  statement {
+    sid     = "DatabaseSecrets"
+    actions = ["secretsmanager:GetSecretValue"]
+    resources = [
+      aws_db_instance.this.master_user_secret[0].secret_arn,
+      aws_secretsmanager_secret.runtime_db.arn,
+    ]
+  }
+}
+
+resource "aws_iam_role_policy" "migrate_execution" {
+  name   = "start-migrate-task"
+  role   = aws_iam_role.migrate_execution.id
+  policy = data.aws_iam_policy_document.migrate_execution.json
 }
