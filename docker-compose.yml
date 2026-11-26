@@ -1,12 +1,28 @@
-# Local stack: PostgreSQL plus the service built from this repository.
-#   cp .env.example .env && docker compose up --build
+# Local stack: PostgreSQL, a one-shot migration job and the service.
+#   cp .env.example .env
+#   docker compose up --build -d
+# Migrations run as the schema owner; the service itself connects as the unprivileged
+# ledger_app role. API keys are issued with: docker compose run --rm keygen
+x-ledger-image: &ledger-image
+  build: .
+  image: ledger-core:local
+
+x-owner-connection: &owner-connection
+  LEDGER_DB_URL: jdbc:postgresql://postgres:5432/ledger
+  LEDGER_DB_USER: ledger
+  LEDGER_DB_PASSWORD: ${LEDGER_OWNER_DB_PASSWORD:?copy .env.example to .env first}
+  LEDGER_MIGRATION_DB_USER: ledger
+  LEDGER_MIGRATION_DB_PASSWORD: ${LEDGER_OWNER_DB_PASSWORD:?copy .env.example to .env first}
+  LEDGER_RUNTIME_ROLE_PASSWORD: ${LEDGER_APP_DB_PASSWORD:?copy .env.example to .env first}
+  SPRING_MAIN_WEB_APPLICATION_TYPE: none
+
 services:
   postgres:
     image: postgres:16-alpine
     environment:
       POSTGRES_DB: ledger
       POSTGRES_USER: ledger
-      POSTGRES_PASSWORD: ${LEDGER_DB_PASSWORD:?copy .env.example to .env first}
+      POSTGRES_PASSWORD: ${LEDGER_OWNER_DB_PASSWORD:?copy .env.example to .env first}
     ports:
       - "127.0.0.1:${LEDGER_DB_PORT:-5432}:5432"
     volumes:
@@ -17,15 +33,29 @@ services:
       timeout: 3s
       retries: 20
 
-  ledger:
-    build: .
+  migrate:
+    <<: *ledger-image
     depends_on:
       postgres:
         condition: service_healthy
     environment:
+      <<: *owner-connection
+      LEDGER_MIGRATE_ONLY: "true"
+    restart: "no"
+    read_only: true
+    tmpfs:
+      - /tmp
+
+  ledger:
+    <<: *ledger-image
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    environment:
       LEDGER_DB_URL: jdbc:postgresql://postgres:5432/ledger
-      LEDGER_DB_USER: ledger
-      LEDGER_DB_PASSWORD: ${LEDGER_DB_PASSWORD:?copy .env.example to .env first}
+      LEDGER_DB_USER: ledger_app
+      LEDGER_DB_PASSWORD: ${LEDGER_APP_DB_PASSWORD:?copy .env.example to .env first}
+      SPRING_FLYWAY_ENABLED: "false"
     ports:
       - "127.0.0.1:${LEDGER_HTTP_PORT:-8080}:8080"
     stop_grace_period: 30s
@@ -33,18 +63,35 @@ services:
     tmpfs:
       - /tmp
     healthcheck:
+      # health and metrics are served on the internal management port, not the public one
       test:
         - CMD
         - bash
         - -c
         - >-
-          exec 3<>/dev/tcp/127.0.0.1/8080 &&
+          exec 3<>/dev/tcp/127.0.0.1/8081 &&
           printf 'GET /actuator/health/readiness HTTP/1.0\r\n\r\n' >&3 &&
           grep -q '"status":"UP"' <&3
       interval: 5s
       timeout: 3s
       retries: 20
       start_period: 20s
+
+  keygen:
+    <<: *ledger-image
+    profiles: ["tools"]
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    environment:
+      <<: *owner-connection
+      SPRING_FLYWAY_ENABLED: "false"
+      LEDGER_ADMIN_ISSUE_KEY_NAME: ${LEDGER_KEY_NAME:-local-dev}
+      LEDGER_ADMIN_ISSUE_KEY_SCOPES: ${LEDGER_KEY_SCOPES:-all}
+    restart: "no"
+    read_only: true
+    tmpfs:
+      - /tmp
 
 volumes:
   pgdata:

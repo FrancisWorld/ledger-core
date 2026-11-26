@@ -19,6 +19,6 @@ COPY --from=build --chown=ledger:ledger /workspace/target/extracted/spring-boot-
 COPY --from=build --chown=ledger:ledger /workspace/target/extracted/snapshot-dependencies/ ./
 COPY --from=build --chown=ledger:ledger /workspace/target/extracted/application/ ./
 USER ledger:ledger
-EXPOSE 8080
+EXPOSE 8080 8081
 ENV JAVA_TOOL_OPTIONS="-XX:MaxRAMPercentage=75 -XX:+ExitOnOutOfMemoryError"
 ENTRYPOINT ["java", "-jar", "/app/ledger-core-0.1.0.jar"]
